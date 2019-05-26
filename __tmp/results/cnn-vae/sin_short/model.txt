@@ -1,0 +1,21 @@
+sequence_len, batch_size, stride, num_conv_channels, vae_encoder_shape_weights, 
+vae_decoder_shape_weights, vae_encoder_strides, vae_decoder_strides, 
+vae_hidden_size, subsampling, elbo_importance, 
+lambda_reg, rounding, learning_rate_elbo, vae_activation, normalization
+
+(40,
+ 1,
+ 3,
+ 5,
+ [7, 5],
+ [7, 5],
+ [2],
+ [2, 2],
+ 1,
+ 1,
+ (0.2, 1.0),
+ (0.005, 0.005),
+ None,
+ 0.0001,
+ <function tensorflow.python.ops.nn_ops.relu6(features, name=None)>,
+ 'maxmin01')

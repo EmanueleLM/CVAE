@@ -1,0 +1,25 @@
+DATASET: ecg.csv
+TRAIN, VALID_REL: .5, .6
+
+sequence_len, batch_size, stride, num_conv_channels, vae_encoder_shape_weights, vae_decoder_shape_weights, 
+vae_encoder_strides, vae_decoder_strides, make_some_noise, random_stride, vae_hidden_size, subsampling, 
+elbo_importance, lambda_reg, rounding, learning_rate_elbo, vae_activation, normalization
+
+(100,
+ 1,
+ 5,
+ 5,
+ [3, 3, 2],
+ [5, 5, 3, 3],
+ [2, 2, 2],
+ [2, 2, 2, 3],
+ (True, 0.05),
+ False,
+ 1,
+ 1,
+ (0.2, 1.0),
+ (0.005, 0.005),
+ None,
+ 0.001,
+ <function tensorflow.python.ops.nn_ops.relu6(features, name=None)>,
+ 'maxmin01')
