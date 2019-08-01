@@ -21,16 +21,16 @@ if __name__ == '__main__':
     
     # parameters of the model
     data_path = '../../../data/power_consumption.csv'
-    sequence_len = 500
+    sequence_len = 150
     batch_size = 1
     stride = 1
-    num_conv_channels = 8  # convolutional channels
+    num_conv_channels = 4  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [7, 10]
-    vae_decoder_shape_weights = [7, 10]    
-    vae_encoder_strides = [3, 5]
-    vae_decoder_strides = [3, 5]  
+    vae_encoder_shape_weights = [3, 3, 5]
+    vae_decoder_shape_weights = [3, 3, 5]    
+    vae_encoder_strides = [2, 2, 3]
+    vae_decoder_strides = [2, 2, 3]  
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     vae_hidden_size = 1
     subsampling = 1
     elbo_importance = (.1, 1.)  # relative importance to reconstruction and divergence
-    lambda_reg = (5e-3, 0e-3)  # elastic net 'lambdas', L1-L2
+    lambda_reg = (0e-3, 0e-3)  # elastic net 'lambdas', L1-L2
     rounding = None
     
     # maximize precision or F1-score over this vector

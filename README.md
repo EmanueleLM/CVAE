@@ -2,7 +2,7 @@
 Convolutional Variational-Autoencoder (CVAE) for anomaly detection in time series.
 A fully unsupervised approach to anomaly detection based on Convolutional Neural Networks and Variational Autoencoders.
 
-This is the code for a paper that has been accepted at the International Conference on Time Series and Forecasting, namely ITISE2019 (http://itise.ugr.es/). Soon the link to the paper whose name is 'Unsupervised Anomaly Detection in Time Series with Convolutional-VAE', authors Emanuele La Malfa (first_name.lastname <at> mail.polimi.it) and Gabriele La Malfa (please contact me directly if you need his mail).
+This is the code for a paper that has been accepted at the International Conference on Time Series and Forecasting, namely ITISE2019 (http://itise.ugr.es/). Soon the link to the paper whose name is 'Unsupervised Anomaly Detection in Time Series with Convolutional-VAE', authors Emanuele La Malfa (first_name.lastname <at> mail.polimi.it) and Gabriele La Malfa (please contact me directly/ if you need his mail).
 
 ## Requirements
 TensorFlow (>=1.14)
