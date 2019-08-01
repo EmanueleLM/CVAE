@@ -13,14 +13,14 @@ import sys
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-sys.path.append('../../utils')
+sys.path.append('../../../utils')
 import utils_dataset as utils
 
 
 if __name__ == '__main__':
     
     # parameters of the model
-    data_path = '../../data/power_consumption.csv'
+    data_path = '../../../data/power_consumption.csv'
     sequence_len = 500
     batch_size = 1
     stride = 1
