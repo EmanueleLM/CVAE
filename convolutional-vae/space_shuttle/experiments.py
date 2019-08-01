@@ -249,13 +249,12 @@ if __name__ == '__main__':
             x_test = x_test[:len(y_test)]
                     
 
-    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,
-                                          log_device_placement=True)) as sess:
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
+                                          log_device_placement=False)) as sess:
         
         # print out series of transformations' shapes
-        print("\nEncoder shapes: \n", enc_shapes)
-        print("\nDecoder shapes:", dec_shapes)
-        print()
+        print("\n[CUSTOM-LOGGER]: Encoder shapes: \n", enc_shapes)
+        print("\n[CUSTOM-LOGGER]: Decoder shapes:", dec_shapes)
         
         # create dataset with random stride
         # extract train and test
@@ -311,7 +310,7 @@ if __name__ == '__main__':
                 random_noise = np.random.rand(*x_train.shape)*random_noise
                 x_train += random_noise
                 
-            print("epoch ", e)
+            print("[CUSTOM-LOGGER]: epoch ", e)
             iter_ = 0
             
             while iter_ < int(np.floor(x_train.shape[0] / batch_size)):
@@ -338,13 +337,13 @@ if __name__ == '__main__':
 
                     iter_val_ += 1
                     
-                print("Previous error on valid ", last_error_on_valid)
-                print("Current error on valid ", current_error_on_valid)
+                print("[CUSTOM-LOGGER]: Previous error on valid ", last_error_on_valid)
+                print("[CUSTOM-LOGGER]: Current error on valid ", current_error_on_valid)
                                  
                 # stop learning if the loss reduction is below the threshold (current_loss/past_loss)
                 if current_error_on_valid > last_error_on_valid or (np.abs(current_error_on_valid/last_error_on_valid) > 1-min_loss_improvment and e!=0):
                     
-                    print("Early stopping: validation error has increased since last epoch.")
+                    print("[CUSTOM-LOGGER]: Early stopping: validation error has increased since last epoch.")
                     e = epochs
                         
                 last_error_on_valid = current_error_on_valid
@@ -365,9 +364,7 @@ if __name__ == '__main__':
         condition_positive = np.array([])
         
         for t in sigma_threshold_elbo:
-            
-            print("Optimizing with threshold's value: ", t)
-            
+                       
             vae_anomalies = []
             p_anom = np.zeros(shape=(int(np.floor(x_test.shape[0] / batch_size)),))
             threshold_elbo = (t, 1.-t)            
@@ -417,7 +414,7 @@ if __name__ == '__main__':
                 
                 precision = recall = .0
                 
-            print("Precision and recall for threshold: ", t, " is ", (precision, recall))
+            #print("[CUSTOM-LOGGER]: Precision and recall for threshold: ", t, " is ", (precision, recall))
             
             if precision >= best_precision:
                 
@@ -429,7 +426,6 @@ if __name__ == '__main__':
         # plot data series    
         fig, ax1 = plt.subplots()
         
-        print("\nTime series:")
         ax1.plot(y_test, 'b', label='index')
         ax1.set_xlabel('Time')
         ax1.set_ylabel('Space Shuttle')
@@ -451,7 +447,6 @@ if __name__ == '__main__':
         fig.tight_layout()
         plt.show()
                 
-        print("Anomalies in the series:", condition_positive.T)
-        print("Anomalies detected with threshold: ", best_threshold)
-        print(best_predicted_positive.T)
-        print("Precision and recall ", best_precision, best_recall)
+        print("[CUSTOM-LOGGER]: Anomalies in the series:", condition_positive.T)
+        print("[CUSTOM-LOGGER]: Anomalies detected with threshold: ", best_threshold, best_predicted_positive.T)
+        print("[CUSTOM-LOGGER]: Precision and recall ", best_precision, best_recall)

@@ -20,36 +20,36 @@ import utils_dataset as utils
 if __name__ == '__main__':
     
     # parameters of the model
-    data_path = '../../data/power_consumption.csv'
-    sequence_len = 500
+    data_path = '../../data/augmented_space_shuttle_marotta_valve.csv'
+    sequence_len = 125
     batch_size = 1
-    stride = 1
-    num_conv_channels = 8  # convolutional channels
+    stride = 5
+    num_conv_channels = 2  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [7, 10]
-    vae_decoder_shape_weights = [7, 10]    
-    vae_encoder_strides = [3, 5]
-    vae_decoder_strides = [3, 5]  
+    vae_encoder_shape_weights = [5, 5]
+    vae_decoder_shape_weights = [2, 4, 5, 10]    
+    vae_encoder_strides = [2, 3]
+    vae_decoder_strides = [5, 4, 3, 2] 
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
-    make_some_noise = (False, 5e-2)  
+    make_some_noise = (True, 5e-2)  
     
     # for each training epoch, use a random value of stride between 1 and stride
     random_stride = False  
     vae_hidden_size = 1
     subsampling = 1
-    elbo_importance = (.1, 1.)  # relative importance to reconstruction and divergence
-    lambda_reg = (5e-3, 0e-3)  # elastic net 'lambdas', L1-L2
+    elbo_importance = (.2, 1.)  # relative importance to reconstruction and divergence
+    lambda_reg = (5e-3, 5e-3)  # elastic net 'lambdas', L1-L2
     rounding = None
     
     # maximize precision or F1-score over this vector
     sigma_threshold_elbo = [1e-2] # [i*1e-3 for i in range(1, 100, 10)]
     
-    learning_rate_elbo = 1e-4
+    learning_rate_elbo = 1e-3
     vae_activation = tf.nn.relu6
-    normalization = 'maxmin-11'
+    normalization = 'maxmin01'
     
     # training epochs
     epochs = 100
@@ -60,13 +60,13 @@ if __name__ == '__main__':
     # early-stopping parameters
     stop_on_growing_error = True
     stop_valid_percentage = 1.  # percentage of validation used for early-stopping 
-    min_loss_improvment = .01  # percentage of minimum loss' decrease (.01 is 1%)
+    min_loss_improvment = .03  # percentage of minimum loss' decrease (.01 is 1%)
     
     # reset computational graph
     tf.reset_default_graph()
     
     # create the computational graph
-    with tf.device('/device:CPU:0'):
+    with tf.device('/device:GPU:0'):
         
         # debug variable: encode-decode shapes
         enc_shapes = []
@@ -218,7 +218,7 @@ if __name__ == '__main__':
         optimizer_elbo = tf.train.AdamOptimizer(learning_rate_elbo).minimize(regularized_elbo)
         
     if random_stride == False:
-               
+        
         # extract train and test
         x_train, y_train, x_valid, y_valid, x_test, y_test = utils.generate_batches(
                                                                  filename=data_path, 
@@ -232,10 +232,10 @@ if __name__ == '__main__':
                                                                  td_method=None,
                                                                  subsampling=subsampling,
                                                                  rounding=rounding)
-               
+       
         # suppress second axis on Y values (the algorithms expects shapes like (n,) for the prediction)
         y_train = y_train[:,0]; y_valid = y_valid[:,0]; y_test = y_test[:,0]
-               
+        
         if len(x_train) > len(y_train):
             
             x_train = x_train[:len(y_train)]
@@ -247,22 +247,14 @@ if __name__ == '__main__':
         if len(x_test) > len(y_test):
             
             x_test = x_test[:len(y_test)]
-            
-        # adjust train test size (for testing purpose)
-        y_train = y_train[300:3000]
-        x_train = x_train[300:3000,:]
-        y_valid = y_valid[300:1600]
-        x_valid = x_valid[300:1600,:]
-        y_test = y_test[4500:]
-        x_test = x_test[4500:,:]
-            
+                    
+
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
                                           log_device_placement=False)) as sess:
         
         # print out series of transformations' shapes
-        print("\nEncoder shapes: \n", enc_shapes)
-        print("\nDecoder shapes:", dec_shapes)
-        print()
+        print("\n[CUSTOM-LOGGER]: Encoder shapes: \n", enc_shapes)
+        print("\n[CUSTOM-LOGGER]: Decoder shapes:", dec_shapes)
         
         # create dataset with random stride
         # extract train and test
@@ -318,14 +310,11 @@ if __name__ == '__main__':
                 random_noise = np.random.rand(*x_train.shape)*random_noise
                 x_train += random_noise
                 
-            print("Train epoch ", e)
+            print("[CUSTOM-LOGGER]: epoch ", e)
             iter_ = 0
             
-            train_num_samples = int(np.floor(x_train.shape[0] / batch_size))            
-            while iter_ < train_num_samples:
-                   
-                #print("Sample ", iter_,"out of ", train_num_samples)
-                
+            while iter_ < int(np.floor(x_train.shape[0] / batch_size)):
+        
                 batch_x = x_train[iter_*batch_size: (iter_+1)*batch_size, :].T.reshape(1, sequence_len, batch_size)
                 
                 # run VAE encoding-decoding
@@ -334,32 +323,27 @@ if __name__ == '__main__':
                 iter_ +=  1
 
             if stop_on_growing_error:
-                
-                print("Validation")
                                                
                 current_error_on_valid = .0
-                                
+                
                 # verificate stop condition
                 iter_val_ = 0
-                validation_num_samples = int(stop_valid_percentage * np.floor(x_valid.shape[0] / batch_size))
-                while iter_val_ < validation_num_samples:
+                while iter_val_ < int(stop_valid_percentage * np.floor(x_valid.shape[0] / batch_size)):
                     
-                    #print("Sample ", iter_,"out of ", validation_num_samples)
-
                     batch_x_val = x_valid[iter_val_*batch_size: (iter_val_+1)*batch_size, :].T.reshape(1, sequence_len, batch_size)
                     
                     # accumulate error
-                    current_error_on_valid +=  np.abs(np.sum(sess.run(regularized_elbo, feed_dict={input_: batch_x_val})))
+                    current_error_on_valid +=  np.abs(np.sum(sess.run(-elbo, feed_dict={input_: batch_x_val})))
 
                     iter_val_ += 1
                     
-                print("Previous error on valid ", last_error_on_valid)
-                print("Current error on valid ", current_error_on_valid)
+                print("[CUSTOM-LOGGER]: Previous error on valid ", last_error_on_valid)
+                print("[CUSTOM-LOGGER]: Current error on valid ", current_error_on_valid)
                                  
                 # stop learning if the loss reduction is below the threshold (current_loss/past_loss)
                 if current_error_on_valid > last_error_on_valid or (np.abs(current_error_on_valid/last_error_on_valid) > 1-min_loss_improvment and e!=0):
                     
-                    print("Early stopping: validation error has increased since last epoch.")
+                    print("[CUSTOM-LOGGER]: Early stopping: validation error has increased since last epoch.")
                     e = epochs
                         
                 last_error_on_valid = current_error_on_valid
@@ -380,9 +364,7 @@ if __name__ == '__main__':
         condition_positive = np.array([])
         
         for t in sigma_threshold_elbo:
-            
-            print("Optimizing with threshold's value: ", t)
-            
+                       
             vae_anomalies = []
             p_anom = np.zeros(shape=(int(np.floor(x_test.shape[0] / batch_size)),))
             threshold_elbo = (t, 1.-t)            
@@ -432,7 +414,7 @@ if __name__ == '__main__':
                 
                 precision = recall = .0
                 
-            print("Precision and recall for threshold: ", t, " is ", (precision, recall))
+            #print("[CUSTOM-LOGGER]: Precision and recall for threshold: ", t, " is ", (precision, recall))
             
             if precision >= best_precision:
                 
@@ -444,7 +426,6 @@ if __name__ == '__main__':
         # plot data series    
         fig, ax1 = plt.subplots()
         
-        print("\nTime series:")
         ax1.plot(y_test, 'b', label='index')
         ax1.set_xlabel('Time')
         ax1.set_ylabel('Space Shuttle')
@@ -466,7 +447,6 @@ if __name__ == '__main__':
         fig.tight_layout()
         plt.show()
                 
-        print("Anomalies in the series:", condition_positive.T)
-        print("Anomalies detected with threshold: ", best_threshold)
-        print(best_predicted_positive.T)
-        print("Precision and recall ", best_precision, best_recall)
+        print("[CUSTOM-LOGGER]: Anomalies in the series:", condition_positive.T)
+        print("[CUSTOM-LOGGER]: Anomalies detected with threshold: ", best_threshold, best_predicted_positive.T)
+        print("[CUSTOM-LOGGER]: Precision and recall ", best_precision, best_recall)

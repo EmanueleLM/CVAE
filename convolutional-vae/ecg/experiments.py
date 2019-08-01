@@ -249,8 +249,8 @@ if __name__ == '__main__':
             x_test = x_test[:len(y_test)]
                     
 
-    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,
-                                          log_device_placement=True)) as sess:
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
+                                          log_device_placement=False)) as sess:
         
         # print out series of transformations' shapes
         print("\nEncoder shapes: \n", enc_shapes)

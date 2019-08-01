@@ -13,43 +13,38 @@ import sys
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-sys.path.append('../../utils')
+sys.path.append('../utils')
 import utils_dataset as utils
 
 
 if __name__ == '__main__':
     
     # parameters of the model
-    data_path = '../../data/power_consumption.csv'
-    sequence_len = 500
+    data_path = '../data/sin_short.csv'
+    sequence_len = 40
     batch_size = 1
-    stride = 1
-    num_conv_channels = 8  # convolutional channels
+    stride = 3
+    num_conv_channels = 5  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [7, 10]
-    vae_decoder_shape_weights = [7, 10]    
-    vae_encoder_strides = [3, 5]
-    vae_decoder_strides = [3, 5]  
+    vae_encoder_shape_weights = [10]
+    vae_decoder_shape_weights = [7, 5]    
+    vae_encoder_strides = [2]
+    vae_decoder_strides = [2, 2] 
     
-    # produce a noised version of training data for each training epoch:
-    #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
-    make_some_noise = (False, 5e-2)  
-    
-    # for each training epoch, use a random value of stride between 1 and stride
-    random_stride = False  
+    random_stride = False  # for each training epoch, use a random value of stride between 1 and stride
     vae_hidden_size = 1
     subsampling = 1
     elbo_importance = (.1, 1.)  # relative importance to reconstruction and divergence
-    lambda_reg = (5e-3, 0e-3)  # elastic net 'lambdas', L1-L2
+    lambda_reg = (5e-3, 5e-3)  # elastic net 'lambdas', L1-L2
     rounding = None
     
     # maximize precision or F1-score over this vector
     sigma_threshold_elbo = [1e-2] # [i*1e-3 for i in range(1, 100, 10)]
     
     learning_rate_elbo = 1e-4
-    vae_activation = tf.nn.relu6
-    normalization = 'maxmin-11'
+    vae_activation = tf.nn.tanh
+    normalization = 'maxmin01'
     
     # training epochs
     epochs = 100
@@ -59,18 +54,14 @@ if __name__ == '__main__':
     
     # early-stopping parameters
     stop_on_growing_error = True
-    stop_valid_percentage = 1.  # percentage of validation used for early-stopping 
-    min_loss_improvment = .01  # percentage of minimum loss' decrease (.01 is 1%)
+    stop_valid_percentage = .25  # percentage of validation used for early-stopping 
+    min_loss_improvment = .02  # percentage of minimum loss' decrease (.01 is 1%)
     
     # reset computational graph
     tf.reset_default_graph()
     
     # create the computational graph
-    with tf.device('/device:CPU:0'):
-        
-        # debug variable: encode-decode shapes
-        enc_shapes = []
-        dec_shapes = []
+    with tf.device('/device:GPU:0'):
                 
         # define input/output pairs
         input_ = tf.placeholder(tf.float32, [1, sequence_len, batch_size])  # (batch, input, time)        
@@ -89,18 +80,12 @@ if __name__ == '__main__':
         # use multiple input, one for each input channel
         input_tiled = tf.tile(input_, [1, 1, num_conv_channels])
         
-        # debug enc-dec shapes
-        enc_shapes.append(input_tiled.get_shape())
-        
         vae_encoder = tf.nn.conv1d(input_tiled, 
                                    weights_vae_encoder[0],
                                    vae_encoder_strides[0],
                                    'SAME')
         
         vae_encoder = vae_activation(vae_encoder)
-        
-        # debug enc-dec shapes
-        enc_shapes.append(vae_encoder.get_shape())
         
         for (w_vae, s_vae) in zip(weights_vae_encoder[1:], vae_encoder_strides[1:]):
             
@@ -110,10 +95,6 @@ if __name__ == '__main__':
                                        'SAME')
 
             vae_encoder = vae_activation(vae_encoder)
-            
-            # debug enc-dec shapes
-            enc_shapes.append(vae_encoder.get_shape())
-            
         
         # fully connected hidden layer to shape the nn hidden state
         hidden_enc_weights = tf.Variable(tf.truncated_normal(shape=[vae_encoder.get_shape().as_list()[1],
@@ -125,9 +106,6 @@ if __name__ == '__main__':
     
         vae_encoder = tf.tensordot(hidden_enc_weights, tf.transpose(vae_encoder), axes=([1,0],[0,1])) 
         vae_encoder += hidden_enc_bias
-        
-        # debug enc-dec shapes
-        enc_shapes.append(vae_encoder.get_shape())
         
         # means and variances' vectors of the learnt hidden distribution
         #  we assume the hidden gaussian's variances matrix is diagonal
@@ -164,9 +142,7 @@ if __name__ == '__main__':
                                                          padding='SAME')
         
         vae_decoder = vae_activation(vae_decoder)
-        
-        # debug enc-dec shapes
-        dec_shapes.append(vae_decoder.get_shape())
+
         
         for (w_vae, s_vae) in zip(vae_decoder_shape_weights[1:], vae_decoder_strides[1:]):
             
@@ -178,8 +154,6 @@ if __name__ == '__main__':
             
             vae_decoder = vae_activation(vae_decoder)
             
-            # debug enc-dec shapes
-            dec_shapes.append(vae_decoder.get_shape())            
             
         # hidden fully-connected layer
         hidden_dec_weights = tf.Variable(tf.truncated_normal(shape=[vae_decoder.get_shape().as_list()[2],
@@ -193,9 +167,6 @@ if __name__ == '__main__':
         vae_decoder = tf.tensordot(hidden_dec_weights, vae_decoder, axes=([1,0],[0,1])) 
         vae_decoder += hidden_dec_bias
         vae_decoder = tf.transpose(tf.expand_dims(vae_decoder, axis=0))
-        
-        # debug enc-dec shapes
-        dec_shapes.append(vae_decoder.get_shape())
         
         # time-series reconstruction and ELBO loss
         vae_reconstruction = tfp.distributions.MultivariateNormalDiag(tf.constant(np.zeros(batch_size*sequence_len, dtype='float32')),
@@ -218,24 +189,24 @@ if __name__ == '__main__':
         optimizer_elbo = tf.train.AdamOptimizer(learning_rate_elbo).minimize(regularized_elbo)
         
     if random_stride == False:
-               
+        
         # extract train and test
         x_train, y_train, x_valid, y_valid, x_test, y_test = utils.generate_batches(
                                                                  filename=data_path, 
                                                                  window=sequence_len,
                                                                  stride=stride,
                                                                  mode='strided-validation', 
-                                                                 non_train_percentage=.5,
-                                                                 val_rel_percentage=.6,
+                                                                 non_train_percentage=.6,
+                                                                 val_rel_percentage=.5,
                                                                  normalize=normalization,
                                                                  time_difference=False,
                                                                  td_method=None,
                                                                  subsampling=subsampling,
                                                                  rounding=rounding)
-               
+       
         # suppress second axis on Y values (the algorithms expects shapes like (n,) for the prediction)
         y_train = y_train[:,0]; y_valid = y_valid[:,0]; y_test = y_test[:,0]
-               
+        
         if len(x_train) > len(y_train):
             
             x_train = x_train[:len(y_train)]
@@ -247,22 +218,11 @@ if __name__ == '__main__':
         if len(x_test) > len(y_test):
             
             x_test = x_test[:len(y_test)]
-            
-        # adjust train test size (for testing purpose)
-        y_train = y_train[300:3000]
-        x_train = x_train[300:3000,:]
-        y_valid = y_valid[300:1600]
-        x_valid = x_valid[300:1600,:]
-        y_test = y_test[4500:]
-        x_test = x_test[4500:,:]
-            
+        
+        
+
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
                                           log_device_placement=False)) as sess:
-        
-        # print out series of transformations' shapes
-        print("\nEncoder shapes: \n", enc_shapes)
-        print("\nDecoder shapes:", dec_shapes)
-        print()
         
         # create dataset with random stride
         # extract train and test
@@ -308,24 +268,12 @@ if __name__ == '__main__':
         e = 0
         
         while e < epochs:
-            
-            # inject some random noise in the training data
-            if make_some_noise[0] == True:
                 
-                t_min, t_max = (np.min(y_train), np.max(y_train))
-                
-                random_noise = make_some_noise[1]*(t_max-t_min)
-                random_noise = np.random.rand(*x_train.shape)*random_noise
-                x_train += random_noise
-                
-            print("Train epoch ", e)
+            print("epoch ", e)
             iter_ = 0
             
-            train_num_samples = int(np.floor(x_train.shape[0] / batch_size))            
-            while iter_ < train_num_samples:
-                   
-                #print("Sample ", iter_,"out of ", train_num_samples)
-                
+            while iter_ < int(np.floor(x_train.shape[0] / batch_size)):
+        
                 batch_x = x_train[iter_*batch_size: (iter_+1)*batch_size, :].T.reshape(1, sequence_len, batch_size)
                 
                 # run VAE encoding-decoding
@@ -334,22 +282,17 @@ if __name__ == '__main__':
                 iter_ +=  1
 
             if stop_on_growing_error:
-                
-                print("Validation")
                                                
                 current_error_on_valid = .0
-                                
+                
                 # verificate stop condition
                 iter_val_ = 0
-                validation_num_samples = int(stop_valid_percentage * np.floor(x_valid.shape[0] / batch_size))
-                while iter_val_ < validation_num_samples:
+                while iter_val_ < int(stop_valid_percentage * np.floor(x_valid.shape[0] / batch_size)):
                     
-                    #print("Sample ", iter_,"out of ", validation_num_samples)
-
                     batch_x_val = x_valid[iter_val_*batch_size: (iter_val_+1)*batch_size, :].T.reshape(1, sequence_len, batch_size)
                     
                     # accumulate error
-                    current_error_on_valid +=  np.abs(np.sum(sess.run(regularized_elbo, feed_dict={input_: batch_x_val})))
+                    current_error_on_valid +=  np.abs(np.sum(sess.run(-elbo, feed_dict={input_: batch_x_val})))
 
                     iter_val_ += 1
                     
@@ -363,11 +306,6 @@ if __name__ == '__main__':
                     e = epochs
                         
                 last_error_on_valid = current_error_on_valid
-               
-            # eliminate the noise from training (if injected)
-            if make_some_noise[0] == True:
-                
-                x_train -= random_noise
                 
             e += 1
             

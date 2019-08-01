@@ -66,7 +66,7 @@ if __name__ == '__main__':
     tf.reset_default_graph()
     
     # create the computational graph
-    with tf.device('/device:CPU:0'):
+    with tf.device('/device:GPU:0'):
         
         # debug variable: encode-decode shapes
         enc_shapes = []
