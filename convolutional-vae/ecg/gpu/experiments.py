@@ -24,24 +24,24 @@ if __name__ == '__main__':
     sequence_len = 100
     batch_size = 1
     stride = 5
-    num_conv_channels = 5  # convolutional channels
+    num_conv_channels = 1  # convolutional channels
     
     # convolutional kernels + strides
     vae_encoder_shape_weights = [5, 5]
-    vae_decoder_shape_weights = [7, 5, 5]    
-    vae_encoder_strides = [3, 3]
-    vae_decoder_strides = [3, 5, 5] 
+    vae_decoder_shape_weights = [2, 4, 5]    
+    vae_encoder_strides = [2, 3]
+    vae_decoder_strides = [5, 4, 3] 
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
-    make_some_noise = (True, 5e-2)  
+    make_some_noise = (False, 5e-2)  
     
     # for each training epoch, use a random value of stride between 1 and stride
     random_stride = False  
     vae_hidden_size = 1
     subsampling = 1
     elbo_importance = (.2, 1.)  # relative importance to reconstruction and divergence
-    lambda_reg = (5e-3, 5e-3)  # elastic net 'lambdas', L1-L2
+    lambda_reg = (0e-3, 0e-3)  # elastic net 'lambdas', L1-L2
     rounding = None
     
     # maximize precision or F1-score over this vector
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # early-stopping parameters
     stop_on_growing_error = True
     stop_valid_percentage = 1.  # percentage of validation used for early-stopping 
-    min_loss_improvment = .03  # percentage of minimum loss' decrease (.01 is 1%)
+    min_loss_improvment = .001  # percentage of minimum loss' decrease (.01 is 1%)
     
     # reset computational graph
     tf.reset_default_graph()
