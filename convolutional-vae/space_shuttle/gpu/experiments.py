@@ -21,18 +21,18 @@ if __name__ == '__main__':
     
     # parameters of the model
     data_path = '../../../data/augmented_space_shuttle_marotta_valve.csv'
-    sequence_len = 150
+    sequence_len = 200
     batch_size = 1
     stride = 5
     num_conv_channels = 1  # this duplicate the inputs along the last axis
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [3, 5]
-    vae_decoder_shape_weights = [5, 3]    
-    vae_encoder_strides = [1, 2]
-    vae_decoder_strides = [2, 2]
+    vae_encoder_shape_weights = [8, 4]
+    vae_decoder_shape_weights = [4, 8]    
+    vae_encoder_strides = [4, 2]
+    vae_decoder_strides = [2, 4]
     vae_encoder_num_filters = [4, 8]
-    vae_decoder_num_filters = [2, 4]
+    vae_decoder_num_filters = [4, 4]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values

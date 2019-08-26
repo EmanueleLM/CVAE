@@ -27,12 +27,12 @@ if __name__ == '__main__':
     num_conv_channels = 1  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [5, 5]
-    vae_decoder_shape_weights = [2, 4, 5]    
-    vae_encoder_strides = [2, 3]
-    vae_decoder_strides = [5, 4, 3] 
+    vae_encoder_shape_weights = [8, 4]
+    vae_decoder_shape_weights = [4, 8]    
+    vae_encoder_strides = [4, 2]
+    vae_decoder_strides = [2, 4]
     vae_encoder_num_filters = [4, 8]
-    vae_decoder_num_filters = [2, 4, 5]
+    vae_decoder_num_filters = [4, 4]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     epochs = 100
        
     # number of sampling per iteration in the VAE hidden layer
-    samples_per_iter = 1
+    samples_per_iter = 5
     
     # early-stopping parameters
     stop_on_growing_error = True

@@ -24,15 +24,15 @@ if __name__ == '__main__':
     sequence_len = 500
     batch_size = 1
     stride = 1
-    num_conv_channels = 8  # convolutional channels
+    num_conv_channels = 1  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [7, 10]
-    vae_decoder_shape_weights = [7, 10]    
-    vae_encoder_strides = [3, 5]
-    vae_decoder_strides = [3, 5]  
-    vae_encoder_num_filters = [4, 8]
-    vae_decoder_num_filters = [2, 4]
+    vae_encoder_shape_weights = [10, 5]
+    vae_decoder_shape_weights = [10, 5]    
+    vae_encoder_strides = [5, 5]
+    vae_decoder_strides = [5, 5]  
+    vae_encoder_num_filters = [8, 16]
+    vae_decoder_num_filters = [16, 8]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
