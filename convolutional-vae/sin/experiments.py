@@ -31,20 +31,27 @@ if __name__ == '__main__':
     vae_decoder_shape_weights = [7, 5]    
     vae_encoder_strides = [2]
     vae_decoder_strides = [2, 2] 
+    vae_encoder_num_filters = [4]
+    vae_decoder_num_filters = [2, 4]
     
-    random_stride = False  # for each training epoch, use a random value of stride between 1 and stride
+    # produce a noised version of training data for each training epoch:
+    #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
+    make_some_noise = (False, 5e-2)  
+    
+    # for each training epoch, use a random value of stride between 1 and stride
+    random_stride = False  
     vae_hidden_size = 1
     subsampling = 1
-    elbo_importance = (.1, 1.)  # relative importance to reconstruction and divergence
-    lambda_reg = (5e-3, 5e-3)  # elastic net 'lambdas', L1-L2
+    elbo_importance = (.2, 1.)  # relative importance to reconstruction and divergence
+    lambda_reg = (0e-3, 0e-3)  # elastic net 'lambdas', L1-L2
     rounding = None
     
     # maximize precision or F1-score over this vector
     sigma_threshold_elbo = [1e-2] # [i*1e-3 for i in range(1, 100, 10)]
     
-    learning_rate_elbo = 1e-4
-    vae_activation = tf.nn.tanh
-    normalization = 'maxmin01'
+    learning_rate_elbo = 1e-3
+    vae_activation = tf.nn.relu6
+    normalization = 'maxmin-11'
     
     # training epochs
     epochs = 100
@@ -54,31 +61,38 @@ if __name__ == '__main__':
     
     # early-stopping parameters
     stop_on_growing_error = True
-    stop_valid_percentage = .25  # percentage of validation used for early-stopping 
-    min_loss_improvment = .02  # percentage of minimum loss' decrease (.01 is 1%)
+    stop_valid_percentage = 1.  # percentage of validation used for early-stopping 
+    min_loss_improvment = .01  # percentage of minimum loss' decrease (.01 is 1%)
     
     # reset computational graph
     tf.reset_default_graph()
     
     # create the computational graph
-    with tf.device('/device:CPU:0'):
+    with tf.device('/device:GPU:0'):
+        
+        # debug variable: encode-decode shapes
+        enc_shapes = []
+        dec_shapes = []
                 
         # define input/output pairs
         input_ = tf.placeholder(tf.float32, [1, sequence_len, batch_size])  # (batch, input, time)        
        
         weights_vae_encoder = [tf.Variable(tf.truncated_normal(shape=[shape,
                                                                       num_conv_channels,
-                                                                      num_conv_channels])) for shape in vae_encoder_shape_weights]
+                                                                      num_k])) for (shape, num_k) in zip(vae_encoder_shape_weights, vae_encoder_num_filters)]
             
         weights_vae_decoder = [tf.Variable(tf.truncated_normal(shape=[batch_size,
                                                                       1,
                                                                       shape,
-                                                                      num_conv_channels])) for shape in vae_decoder_shape_weights]
+                                                                      num_k])) for (shape, num_k) in zip(vae_decoder_shape_weights, vae_decoder_num_filters)]
         
-        # VAE graph's definition 
+        # VAE graph's definition
         
-        # use multiple input, one for each input channel
+        # duplicate the input along the last axis
         input_tiled = tf.tile(input_, [1, 1, num_conv_channels])
+        
+        # debug enc-dec shapes
+        enc_shapes.append(input_tiled.get_shape())
         
         vae_encoder = tf.nn.conv1d(input_tiled, 
                                    weights_vae_encoder[0],
@@ -86,6 +100,9 @@ if __name__ == '__main__':
                                    'SAME')
         
         vae_encoder = vae_activation(vae_encoder)
+        
+        # debug enc-dec shapes
+        enc_shapes.append(vae_encoder.get_shape())
         
         for (w_vae, s_vae) in zip(weights_vae_encoder[1:], vae_encoder_strides[1:]):
             
@@ -95,17 +112,24 @@ if __name__ == '__main__':
                                        'SAME')
 
             vae_encoder = vae_activation(vae_encoder)
-        
+            
+            # debug enc-dec shapes
+            enc_shapes.append(vae_encoder.get_shape())
+            
         # fully connected hidden layer to shape the nn hidden state
-        hidden_enc_weights = tf.Variable(tf.truncated_normal(shape=[vae_encoder.get_shape().as_list()[1],
-                                                                    num_conv_channels,
-                                                                    2*vae_hidden_size]))
+        vectorized_length = tf.reduce_prod(vae_encoder.get_shape().as_list())
+        hidden_enc_weights = tf.Variable(tf.truncated_normal(shape=[vectorized_length,
+                                                                    2*vae_hidden_size]))                                                           
     
         hidden_enc_bias = tf.Variable(tf.truncated_normal(shape=[2*vae_hidden_size,
                                                                  1]))
-    
-        vae_encoder = tf.tensordot(hidden_enc_weights, tf.transpose(vae_encoder), axes=([1,0],[0,1])) 
+
+        vae_encoder = tf.matmul(tf.transpose(hidden_enc_weights),
+                                tf.reshape(vae_encoder, shape=(vectorized_length,1))) 
         vae_encoder += hidden_enc_bias
+        
+        # debug enc-dec shapes
+        enc_shapes.append(vae_encoder.get_shape())
         
         # means and variances' vectors of the learnt hidden distribution
         #  we assume the hidden gaussian's variances matrix is diagonal
@@ -136,37 +160,46 @@ if __name__ == '__main__':
                                                        num_conv_channels))
         
         vae_decoder = tf.contrib.layers.conv2d_transpose(feed_decoder,
-                                                         num_outputs=num_conv_channels,
+                                                         num_outputs=vae_decoder_num_filters[0],
                                                          kernel_size=(1, vae_decoder_shape_weights[0]),
                                                          stride=vae_decoder_strides[0],
                                                          padding='SAME')
         
         vae_decoder = vae_activation(vae_decoder)
-
         
-        for (w_vae, s_vae) in zip(vae_decoder_shape_weights[1:], vae_decoder_strides[1:]):
+        # debug enc-dec shapes
+        dec_shapes.append(vae_decoder.get_shape())
+        
+        for (w_vae, s_vae, k_vae) in zip(vae_decoder_shape_weights[1:], vae_decoder_strides[1:], vae_decoder_num_filters[1:]):
             
             vae_decoder = tf.contrib.layers.conv2d_transpose(vae_decoder,
-                                                             num_outputs=num_conv_channels,
+                                                             num_outputs=k_vae,
                                                              kernel_size=(1, w_vae),
                                                              stride=s_vae,
                                                              padding='SAME')
             
             vae_decoder = vae_activation(vae_decoder)
             
+            # debug enc-dec shapes
+            dec_shapes.append(vae_decoder.get_shape())            
             
         # hidden fully-connected layer
-        hidden_dec_weights = tf.Variable(tf.truncated_normal(shape=[vae_decoder.get_shape().as_list()[2],
-                                                                    vae_decoder.get_shape().as_list()[1],
+        vectorized_output_length = tf.reduce_prod(vae_decoder.get_shape().as_list())
+
+        hidden_dec_weights = tf.Variable(tf.truncated_normal(shape=[vectorized_output_length,
                                                                     input_.get_shape().as_list()[1]]))
     
-        hidden_dec_bias = tf.Variable(tf.truncated_normal(shape=[1,
+        hidden_dec_bias = tf.Variable(tf.truncated_normal(shape=[input_.get_shape().as_list()[1],
                                                                  ]))
-           
-        vae_decoder = tf.squeeze(vae_decoder, 0)
-        vae_decoder = tf.tensordot(hidden_dec_weights, vae_decoder, axes=([1,0],[0,1])) 
+        
+        
+        # flatten the output
+        vae_decoder = tf.reshape(vae_decoder, shape=(vectorized_output_length, 1))
+        vae_decoder = tf.matmul(tf.transpose(hidden_dec_weights), vae_decoder) 
         vae_decoder += hidden_dec_bias
-        vae_decoder = tf.transpose(tf.expand_dims(vae_decoder, axis=0))
+        
+        # debug enc-dec shapes
+        dec_shapes.append(vae_decoder.get_shape())
         
         # time-series reconstruction and ELBO loss
         vae_reconstruction = tfp.distributions.MultivariateNormalDiag(tf.constant(np.zeros(batch_size*sequence_len, dtype='float32')),
@@ -266,11 +299,27 @@ if __name__ == '__main__':
         last_error_on_valid = np.inf
         current_error_on_valid = .0
         e = 0
+
+        # define weights saver
+        weights_saver = tf.train.Saver(var_list=tf.trainable_variables())
+        path_weights_saver = '/tmp/model.ckpt'
         
         while e < epochs:
+            
+            # inject some random noise in the training data
+            if make_some_noise[0] == True:
                 
-            print("epoch ", e)
+                t_min, t_max = (np.min(y_train), np.max(y_train))
+                
+                random_noise = make_some_noise[1]*(t_max-t_min)
+                random_noise = np.random.rand(*x_train.shape)*random_noise
+                x_train += random_noise
+                
+            print("[CUSTOM-LOGGER]: epoch ", e)
             iter_ = 0
+
+            # save weights before modifying them
+            weights_saver.save(sess, path_weights_saver)
             
             while iter_ < int(np.floor(x_train.shape[0] / batch_size)):
         
@@ -296,16 +345,25 @@ if __name__ == '__main__':
 
                     iter_val_ += 1
                     
-                print("Previous error on valid ", last_error_on_valid)
-                print("Current error on valid ", current_error_on_valid)
+                print("[CUSTOM-LOGGER]: Previous error on valid ", last_error_on_valid)
+                print("[CUSTOM-LOGGER]: Current error on valid ", current_error_on_valid)
                                  
                 # stop learning if the loss reduction is below the threshold (current_loss/past_loss)
                 if current_error_on_valid > last_error_on_valid or (np.abs(current_error_on_valid/last_error_on_valid) > 1-min_loss_improvment and e!=0):
                     
-                    print("Early stopping: validation error has increased since last epoch.")
+                    print("[CUSTOM-LOGGER]: Early stopping: validation error has increased since last epoch.")
                     e = epochs
+
+                    # restore weights (last iteration was bad)
+                    print("[CUSTOM-LOGGER]: Restoring weights from the last iteration.")
+                    weights_saver.restore(sess, path_weights_saver)
                         
                 last_error_on_valid = current_error_on_valid
+               
+            # eliminate the noise from training (if injected)
+            if make_some_noise[0] == True:
+                
+                x_train -= random_noise
                 
             e += 1
             
