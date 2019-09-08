@@ -21,18 +21,18 @@ if __name__ == '__main__':
     
     # parameters of the model
     data_path = '../../data/augmented_space_shuttle_marotta_valve.csv'
-    sequence_len = 100
+    sequence_len = 50
     batch_size = 1
-    stride = 10
-    num_conv_channels = 1  # convolutional channels
+    stride = 25
+    num_conv_channels = 2  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [5, 5]
-    vae_decoder_shape_weights = [2, 4, 5, 10]    
-    vae_encoder_strides = [2, 3]
-    vae_decoder_strides = [5, 4, 3, 2] 
-    vae_encoder_num_filters = [4, 8]
-    vae_decoder_num_filters = [2, 4, 4, 5]
+    vae_encoder_shape_weights = [5, 4]
+    vae_decoder_shape_weights = [4, 5]    
+    vae_encoder_strides = [3, 2]
+    vae_decoder_strides = [3, 2] 
+    vae_encoder_num_filters = [num_conv_channels, num_conv_channels]
+    vae_decoder_num_filters = [num_conv_channels, num_conv_channels]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
@@ -139,15 +139,15 @@ if __name__ == '__main__':
         loc = tf.transpose(loc)
         scale = tf.transpose(scale)
         
-        # sample from the hidden ditribution
+        # Q(z|x): sample from the hidden ditribution
         vae_hidden_distr = tfp.distributions.MultivariateNormalDiag(loc, scale)
         
         # re-parametrization trick: sample from standard multivariate gaussian,
         #  multiply by std and add mean (from the input sample)
         prior = tfp.distributions.MultivariateNormalDiag(tf.zeros(vae_hidden_size),
-                                                         tf.ones(vae_hidden_size))
+                                                         tf.ones(vae_hidden_size))                                                
         
-        hidden_sample = prior.sample()*scale + loc
+        hidden_sample = tf.reduce_mean([prior.sample()*scale + loc for _ in range(samples_per_iter)], axis=0)
         
         # get probability of the hidden state
         vae_hidden_prob = prior.prob(hidden_sample)

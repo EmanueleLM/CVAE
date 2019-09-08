@@ -13,26 +13,26 @@ import sys
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-sys.path.append('../utils')
+sys.path.append('../../utils')
 import utils_dataset as utils
 
 
 if __name__ == '__main__':
     
     # parameters of the model
-    data_path = '../data/sin_short.csv'
-    sequence_len = 40
+    data_path = '../../data/sin_short.csv'    
+    sequence_len = 100
     batch_size = 1
-    stride = 3
-    num_conv_channels = 5  # convolutional channels
+    stride = 5
+    num_conv_channels = 2  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [10]
-    vae_decoder_shape_weights = [7, 5]    
-    vae_encoder_strides = [2]
-    vae_decoder_strides = [2, 2] 
-    vae_encoder_num_filters = [4]
-    vae_decoder_num_filters = [2, 4]
+    vae_encoder_shape_weights = [4, 3, 2]
+    vae_decoder_shape_weights = [4, 3, 2]    
+    vae_encoder_strides = [2, 2, 1]
+    vae_decoder_strides = [2, 2, 1] 
+    vae_encoder_num_filters = [num_conv_channels, num_conv_channels, num_conv_channels]
+    vae_decoder_num_filters = [num_conv_channels, num_conv_channels, num_conv_channels]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     
     # for each training epoch, use a random value of stride between 1 and stride
     random_stride = False  
-    vae_hidden_size = 1
+    vae_hidden_size = 3
     subsampling = 1
     elbo_importance = (.2, 1.)  # relative importance to reconstruction and divergence
     lambda_reg = (0e-3, 0e-3)  # elastic net 'lambdas', L1-L2
@@ -52,23 +52,24 @@ if __name__ == '__main__':
     learning_rate_elbo = 1e-3
     vae_activation = tf.nn.relu6
     normalization = 'maxmin-11'
+
     
     # training epochs
     epochs = 100
        
     # number of sampling per iteration in the VAE hidden layer
-    samples_per_iter = 1
+    samples_per_iter = 10
     
     # early-stopping parameters
     stop_on_growing_error = True
     stop_valid_percentage = 1.  # percentage of validation used for early-stopping 
-    min_loss_improvment = .01  # percentage of minimum loss' decrease (.01 is 1%)
+    min_loss_improvment = .02  # percentage of minimum loss' decrease (.01 is 1%)
     
     # reset computational graph
     tf.reset_default_graph()
     
     # create the computational graph
-    with tf.device('/device:GPU:0'):
+    with tf.device('/device:CPU:0'):
         
         # debug variable: encode-decode shapes
         enc_shapes = []
@@ -82,7 +83,6 @@ if __name__ == '__main__':
                                                                       num_k])) for (shape, num_k) in zip(vae_encoder_shape_weights, vae_encoder_num_filters)]
             
         weights_vae_decoder = [tf.Variable(tf.truncated_normal(shape=[batch_size,
-                                                                      1,
                                                                       shape,
                                                                       num_k])) for (shape, num_k) in zip(vae_decoder_shape_weights, vae_decoder_num_filters)]
         
@@ -115,6 +115,8 @@ if __name__ == '__main__':
             
             # debug enc-dec shapes
             enc_shapes.append(vae_encoder.get_shape())
+        
+        print("[CUSTOM-LOGGER]: shapes of encoding layers: {}".format(enc_shapes))
             
         # fully connected hidden layer to shape the nn hidden state
         vectorized_length = tf.reduce_prod(vae_encoder.get_shape().as_list())
@@ -131,23 +133,23 @@ if __name__ == '__main__':
         # debug enc-dec shapes
         enc_shapes.append(vae_encoder.get_shape())
         
-        # means and variances' vectors of the learnt hidden distribution
-        #  we assume the hidden gaussian's variances matrix is diagonal
+        # means and variances' vectors of the 'latent' distribution
+        #  we assume it is gaussian and its variances matrix is diagonal
         loc = tf.slice(vae_encoder, [0, 0], [vae_hidden_size, -1])
         scale = tf.slice(tf.nn.softplus(vae_encoder), [vae_hidden_size, 0], [vae_hidden_size, -1])
         
         loc = tf.transpose(loc)
         scale = tf.transpose(scale)
         
-        # sample from the hidden ditribution
+        # Q(z|x): sample from the hidden ditribution
         vae_hidden_distr = tfp.distributions.MultivariateNormalDiag(loc, scale)
         
         # re-parametrization trick: sample from standard multivariate gaussian,
         #  multiply by std and add mean (from the input sample)
         prior = tfp.distributions.MultivariateNormalDiag(tf.zeros(vae_hidden_size),
-                                                         tf.ones(vae_hidden_size))
+                                                         tf.ones(vae_hidden_size))                                                
         
-        hidden_sample = prior.sample()*scale + loc
+        hidden_sample = tf.reduce_mean([prior.sample()*scale + loc for _ in range(samples_per_iter)], axis=0)
         
         # get probability of the hidden state
         vae_hidden_prob = prior.prob(hidden_sample)
@@ -165,7 +167,7 @@ if __name__ == '__main__':
                                                          stride=vae_decoder_strides[0],
                                                          padding='SAME')
         
-        vae_decoder = vae_activation(vae_decoder)
+        vae_decoder = vae_activation(vae_decoder)        
         
         # debug enc-dec shapes
         dec_shapes.append(vae_decoder.get_shape())
@@ -181,7 +183,9 @@ if __name__ == '__main__':
             vae_decoder = vae_activation(vae_decoder)
             
             # debug enc-dec shapes
-            dec_shapes.append(vae_decoder.get_shape())            
+            dec_shapes.append(vae_decoder.get_shape())  
+
+        print("[CUSTOM-LOGGER]: shapes of decoding layers: {}".format(dec_shapes))          
             
         # hidden fully-connected layer
         vectorized_output_length = tf.reduce_prod(vae_decoder.get_shape().as_list())

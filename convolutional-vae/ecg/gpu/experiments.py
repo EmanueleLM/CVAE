@@ -24,15 +24,15 @@ if __name__ == '__main__':
     sequence_len = 100
     batch_size = 1
     stride = 5
-    num_conv_channels = 1  # convolutional channels
+    num_conv_channels = 2  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [8, 4]
-    vae_decoder_shape_weights = [4, 8]    
-    vae_encoder_strides = [4, 2]
-    vae_decoder_strides = [2, 4]
-    vae_encoder_num_filters = [4, 8]
-    vae_decoder_num_filters = [4, 4]
+    vae_encoder_shape_weights = [4, 3, 2]
+    vae_decoder_shape_weights = [4, 3, 2]    
+    vae_encoder_strides = [2, 2, 1]
+    vae_decoder_strides = [2, 2, 1] 
+    vae_encoder_num_filters = [num_conv_channels, num_conv_channels, num_conv_channels]
+    vae_decoder_num_filters = [num_conv_channels, num_conv_channels, num_conv_channels]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     
     # for each training epoch, use a random value of stride between 1 and stride
     random_stride = False  
-    vae_hidden_size = 1
+    vae_hidden_size = 3
     subsampling = 1
     elbo_importance = (.2, 1.)  # relative importance to reconstruction and divergence
     lambda_reg = (0e-3, 0e-3)  # elastic net 'lambdas', L1-L2
@@ -57,12 +57,12 @@ if __name__ == '__main__':
     epochs = 100
        
     # number of sampling per iteration in the VAE hidden layer
-    samples_per_iter = 5
+    samples_per_iter = 1
     
     # early-stopping parameters
     stop_on_growing_error = True
     stop_valid_percentage = 1.  # percentage of validation used for early-stopping 
-    min_loss_improvment = .01  # percentage of minimum loss' decrease (.01 is 1%)
+    min_loss_improvment = .005  # percentage of minimum loss' decrease (.01 is 1%)
     
     # reset computational graph
     tf.reset_default_graph()
@@ -139,15 +139,15 @@ if __name__ == '__main__':
         loc = tf.transpose(loc)
         scale = tf.transpose(scale)
         
-        # sample from the hidden ditribution
+        # Q(z|x): sample from the hidden ditribution
         vae_hidden_distr = tfp.distributions.MultivariateNormalDiag(loc, scale)
         
         # re-parametrization trick: sample from standard multivariate gaussian,
         #  multiply by std and add mean (from the input sample)
         prior = tfp.distributions.MultivariateNormalDiag(tf.zeros(vae_hidden_size),
-                                                         tf.ones(vae_hidden_size))
+                                                         tf.ones(vae_hidden_size))                                                
         
-        hidden_sample = prior.sample()*scale + loc
+        hidden_sample = tf.reduce_mean([prior.sample()*scale + loc for _ in range(samples_per_iter)], axis=0)
         
         # get probability of the hidden state
         vae_hidden_prob = prior.prob(hidden_sample)
@@ -190,8 +190,7 @@ if __name__ == '__main__':
                                                                     input_.get_shape().as_list()[1]]))
     
         hidden_dec_bias = tf.Variable(tf.truncated_normal(shape=[input_.get_shape().as_list()[1],
-                                                                 ]))
-        
+                                                                 ]))        
         
         # flatten the output
         vae_decoder = tf.reshape(vae_decoder, shape=(vectorized_output_length, 1))

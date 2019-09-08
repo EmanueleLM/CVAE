@@ -21,18 +21,18 @@ if __name__ == '__main__':
     
     # parameters of the model
     data_path = '../../data/power_consumption.csv'
-    sequence_len = 500
+    sequence_len = 200
     batch_size = 1
-    stride = 1
-    num_conv_channels = 1  # convolutional channels
+    stride = 10
+    num_conv_channels = 16  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [10, 5]
-    vae_decoder_shape_weights = [10, 5]    
-    vae_encoder_strides = [5, 5]
-    vae_decoder_strides = [5, 5]  
-    vae_encoder_num_filters = [8, 16]
-    vae_decoder_num_filters = [16, 8]
+    vae_encoder_shape_weights = [8, 4]
+    vae_decoder_shape_weights = [4, 8]    
+    vae_encoder_strides = [4, 2]
+    vae_decoder_strides = [2, 4] 
+    vae_encoder_num_filters = [num_conv_channels, num_conv_channels]
+    vae_decoder_num_filters = [num_conv_channels, num_conv_channels]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
@@ -139,15 +139,15 @@ if __name__ == '__main__':
         loc = tf.transpose(loc)
         scale = tf.transpose(scale)
         
-        # sample from the hidden ditribution
+        # Q(z|x): sample from the hidden ditribution
         vae_hidden_distr = tfp.distributions.MultivariateNormalDiag(loc, scale)
         
         # re-parametrization trick: sample from standard multivariate gaussian,
         #  multiply by std and add mean (from the input sample)
         prior = tfp.distributions.MultivariateNormalDiag(tf.zeros(vae_hidden_size),
-                                                         tf.ones(vae_hidden_size))
+                                                         tf.ones(vae_hidden_size))                                                
         
-        hidden_sample = prior.sample()*scale + loc
+        hidden_sample = tf.reduce_mean([prior.sample()*scale + loc for _ in range(samples_per_iter)], axis=0)
         
         # get probability of the hidden state
         vae_hidden_prob = prior.prob(hidden_sample)
@@ -251,7 +251,8 @@ if __name__ == '__main__':
         if len(x_test) > len(y_test):
             
             x_test = x_test[:len(y_test)]
-            
+
+        """  
         # adjust train test size (for testing purpose)
         y_train = y_train[300:3000]
         x_train = x_train[300:3000,:]
@@ -259,6 +260,7 @@ if __name__ == '__main__':
         x_valid = x_valid[300:1600,:]
         y_test = y_test[4500:]
         x_test = x_test[4500:,:]
+        """
             
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
                                           log_device_placement=False)) as sess:
@@ -283,7 +285,7 @@ if __name__ == '__main__':
                                                                      time_difference=False,
                                                                      td_method=None,
                                                                      subsampling=subsampling,
-                                                                     rounding=rounding)
+                                                                     rounding=rounding)                                                                   
            
             # suppress second axis on Y values (the algorithms expects shapes like (n,) for the prediction)
             y_train = y_train[:,0]; y_valid = y_valid[:,0]; y_test = y_test[:,0]
