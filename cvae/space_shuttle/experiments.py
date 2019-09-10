@@ -13,34 +13,40 @@ import sys
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-sys.path.append('../../../utils')
+sys.path.append('../../utils')
 import utils_dataset as utils
 
 
 if __name__ == '__main__':
+
+    # decide which device to execute the computation
+    computational_device = '/device:CPU:0'  # decide between CPU, GPU etc.
     
     # parameters of the model
-    data_path = '../../../data/ecg.csv'
-    sequence_len = 100
+    data_path = '../../data/augmented_space_shuttle_marotta_valve.csv'
+    sequence_len = 50
     batch_size = 1
-    stride = 5
-    num_conv_channels = 2  # convolutional channels
+    stride = 10
+    num_conv_channels = 8  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [4, 3, 2]
-    vae_decoder_shape_weights = [4, 3, 2]    
-    vae_encoder_strides = [2, 2, 1]
-    vae_decoder_strides = [2, 2, 1] 
-    vae_encoder_num_filters = [num_conv_channels, num_conv_channels, num_conv_channels]
-    vae_decoder_num_filters = [num_conv_channels, num_conv_channels, num_conv_channels]
+    vae_encoder_shape_weights = [5, 4]
+    vae_decoder_shape_weights = [4, 5]    
+    vae_encoder_strides = [3, 2]
+    vae_decoder_strides = [3, 2] 
+    vae_encoder_num_filters = [num_conv_channels, num_conv_channels]
+    vae_decoder_num_filters = [num_conv_channels, num_conv_channels]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
     make_some_noise = (False, 5e-2)  
+
+    # decide which to use as probability generator for each sequence between Q(z|x) and P(z)
+    prob_generator = 'P(z)'  # one between 'Q(z|x)' and 'P(z)', as string. Default is P(z)
     
     # for each training epoch, use a random value of stride between 1 and stride
     random_stride = False  
-    vae_hidden_size = 3
+    vae_hidden_size = 1
     subsampling = 1
     elbo_importance = (.2, 1.)  # relative importance to reconstruction and divergence
     lambda_reg = (0e-3, 0e-3)  # elastic net 'lambdas', L1-L2
@@ -62,13 +68,13 @@ if __name__ == '__main__':
     # early-stopping parameters
     stop_on_growing_error = True
     stop_valid_percentage = 1.  # percentage of validation used for early-stopping 
-    min_loss_improvment = .005  # percentage of minimum loss' decrease (.01 is 1%)
+    min_loss_improvment = .01  # percentage of minimum loss' decrease (.01 is 1%)
     
     # reset computational graph
     tf.reset_default_graph()
     
     # create the computational graph
-    with tf.device('/device:GPU:0'):
+    with tf.device(computational_device):
         
         # debug variable: encode-decode shapes
         enc_shapes = []
@@ -150,7 +156,12 @@ if __name__ == '__main__':
         hidden_sample = tf.reduce_mean([prior.sample()*scale + loc for _ in range(samples_per_iter)], axis=0)
         
         # get probability of the hidden state
-        vae_hidden_prob = prior.prob(hidden_sample)
+        if prob_generator == 'Q(z|x)':
+            print("[CUSTOM-LOGGER]: Q(z|x) used as probability generator for anomaly detection.")
+            vae_hidden_prob = vae_hidden_distr.prob(hidden_sample)
+        else:
+            print("[CUSTOM-LOGGER]: P(z) used as probability generator for anomaly detection.")
+            vae_hidden_prob = prior.prob(hidden_sample)
                 
         # rebuild the input with 'de-convolution' operations  
         feed_decoder = tf.tile(tf.expand_dims(hidden_sample, -1), [1, 1, num_conv_channels])
@@ -190,7 +201,8 @@ if __name__ == '__main__':
                                                                     input_.get_shape().as_list()[1]]))
     
         hidden_dec_bias = tf.Variable(tf.truncated_normal(shape=[input_.get_shape().as_list()[1],
-                                                                 ]))        
+                                                                 ]))
+        
         
         # flatten the output
         vae_decoder = tf.reshape(vae_decoder, shape=(vectorized_output_length, 1))
@@ -254,11 +266,11 @@ if __name__ == '__main__':
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
                                           log_device_placement=False)) as sess:
+
         
         # print out series of transformations' shapes
-        print("\nEncoder shapes: \n", enc_shapes)
-        print("\nDecoder shapes:", dec_shapes)
-        print()
+        print("\n[CUSTOM-LOGGER]: Encoder shapes: \n", enc_shapes)
+        print("\n[CUSTOM-LOGGER]: Decoder shapes:", dec_shapes)
         
         # create dataset with random stride
         # extract train and test
@@ -369,7 +381,6 @@ if __name__ == '__main__':
                 x_train -= random_noise
                 
             e += 1
-
             
         # anomaly detection on test set
         y_test = y_test[:x_test.shape[0]]
@@ -380,9 +391,7 @@ if __name__ == '__main__':
         condition_positive = np.array([])
         
         for t in sigma_threshold_elbo:
-            
-            print("Optimizing with threshold's value: ", t)
-            
+                       
             vae_anomalies = []
             p_anom = np.zeros(shape=(int(np.floor(x_test.shape[0] / batch_size)),))
             threshold_elbo = (t, 1.-t)            
@@ -432,7 +441,7 @@ if __name__ == '__main__':
                 
                 precision = recall = .0
                 
-            print("Precision and recall for threshold: ", t, " is ", (precision, recall))
+            #print("[CUSTOM-LOGGER]: Precision and recall for threshold: ", t, " is ", (precision, recall))
             
             if precision >= best_precision:
                 
@@ -444,7 +453,6 @@ if __name__ == '__main__':
         # plot data series    
         fig, ax1 = plt.subplots()
         
-        print("\nTime series:")
         ax1.plot(y_test, 'b', label='index')
         ax1.set_xlabel('Time')
         ax1.set_ylabel('Space Shuttle')
@@ -466,7 +474,6 @@ if __name__ == '__main__':
         fig.tight_layout()
         plt.show()
                 
-        print("Anomalies in the series:", condition_positive.T)
-        print("Anomalies detected with threshold: ", best_threshold)
-        print(best_predicted_positive.T)
-        print("Precision and recall ", best_precision, best_recall)
+        print("[CUSTOM-LOGGER]: Anomalies in the series:", condition_positive.T)
+        print("[CUSTOM-LOGGER]: Anomalies detected with threshold: ", best_threshold, best_predicted_positive.T)
+        print("[CUSTOM-LOGGER]: Precision and recall ", best_precision, best_recall)
