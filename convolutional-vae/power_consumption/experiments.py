@@ -24,7 +24,7 @@ if __name__ == '__main__':
     sequence_len = 200
     batch_size = 1
     stride = 10
-    num_conv_channels = 16  # convolutional channels
+    num_conv_channels = 1  # convolutional channels
     
     # convolutional kernels + strides
     vae_encoder_shape_weights = [8, 4]
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     tf.reset_default_graph()
     
     # create the computational graph
-    with tf.device('/device:GPU:0'):
+    with tf.device('/device:CPU:0'):
         
         # debug variable: encode-decode shapes
         enc_shapes = []

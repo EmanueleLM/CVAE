@@ -23,8 +23,8 @@ if __name__ == '__main__':
     data_path = '../../data/augmented_space_shuttle_marotta_valve.csv'
     sequence_len = 50
     batch_size = 1
-    stride = 25
-    num_conv_channels = 2  # convolutional channels
+    stride = 10
+    num_conv_channels = 8  # convolutional channels
     
     # convolutional kernels + strides
     vae_encoder_shape_weights = [5, 4]
