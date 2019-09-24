@@ -23,12 +23,17 @@ The software has been tested on:
 Both the systems were provided with 'pip' package manager and everything has been installed with the command
 'pip install <package_name>'.
 
-Just go to the folder 'convolutional-vae/<experiment_name>/' and run a 'python experiments.py' to run on CPU.
+Each dataset needs to be associated to a .json config file, to put into the 'config' folder.
+Then just go to the folder 'cvae' and run a 'python experiments.py <cfg.json>'  where '<cfg.json>' is the path to the configuration file.
+Example:
+```
+python experiments.py config/sin_config.json
+```
 
 ## Hot to run on GPU
 You need to install TensorFlow-gpu, CUDA and cuDNN. It is easy on Linux, harder on Windows: there are many setups possible, these experiments has been tested on Linux Ubuntu 19. Please note that this software requires CUDA 10.0 as TensorFlow Probability runs only with TF>=1.14.0 (https://www.tensorflow.org/install/ource#tested_build_configurations)
 
-Just go to the folder 'convolutional-vae/<experiment_name>/gpu' and run a 'python experiments.py'.
+Just modify the config.json file at the entry 'device' with an existing GPU device, like for example '/device:GPU:0', then run the experiment as described in the section 'How to run'.
 
 ## Known Issues
 If you face the issue 'ImportError: No module named tpu.tpu_config', try this solution:
