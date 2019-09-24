@@ -1,0 +1,33 @@
+{
+    "device": "/device:CPU:0",
+    "data_path" : "../data/augmented_space_shuttle_marotta_valve.csv",
+    "sequence_len" : 50,
+    "batch_size" : 1,
+    "stride" : 10,
+    "num_conv_channels" : 8,
+    
+    "vae_encoder_shape_weights": [5, 4],
+    "vae_decoder_shape_weights": [4, 5],   
+    "vae_encoder_strides": [3, 2],
+    "vae_decoder_strides": [3, 2],
+    
+    "make_some_noise": ["false", 5e-2],
+
+    "prob_generator": "P(z)",
+    
+    "random_stride": "false",
+    "vae_hidden_size": 1,
+    "subsampling": 1,
+    "elbo_importance": [0.2, 1.0],
+    "lambda_reg": [0e-3, 0e-3],
+    "rounding": "None",
+    
+    "sigma_threshold_elbo": [1e-2],
+    
+    "learning_rate_elbo": 1e-3,
+    "vae_activation": "tf.nn.relu6",
+    "normalization": "maxmin-11",
+           
+    "epochs": 100,
+    "samples_per_iter": 1
+}

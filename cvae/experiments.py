@@ -3,67 +3,77 @@
 Created on Sun Feb 10 09:36:16 2019
 
 @author: Emanuele
+
+Call this program with a python interpreter and as command line argument the path to the configuration file:
+  '''python3 experiments.py power_consumption_config.json'''
 """
 
 import copy as cp
+import json as json
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as scistats
-import sys
+import sys as sys
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-sys.path.append('../../utils')
+sys.path.append('../utils')
 import utils_dataset as utils
 
 
 if __name__ == '__main__':
 
+    assert len(sys.argv) > 1, "Error: need to specify a config file as second line argument."
+
+    with open(sys.argv[1]) as config_file:
+        cfg = json.load(config_file)
+
     # decide which device to execute the computation
-    computational_device = '/device:CPU:0'  # decide between CPU, GPU etc.
+    computational_device = cfg['device']  # decide between CPU, GPU etc.
     
     # parameters of the model
-    data_path = '../../data/ecg.csv'
-    sequence_len = 80
-    batch_size = 1
-    stride = 10
-    num_conv_channels = 8  # convolutional channels
+    data_path = cfg['data_path']
+    sequence_len = cfg['sequence_len']
+    batch_size = cfg['batch_size']
+    stride = cfg['stride']
+    num_conv_channels = cfg['num_conv_channels']  # convolutional channels
     
     # convolutional kernels + strides
-    vae_encoder_shape_weights = [4, 2]
-    vae_decoder_shape_weights = [2, 4]    
-    vae_encoder_strides = [2, 2]
-    vae_decoder_strides = [2, 2] 
-    vae_encoder_num_filters = [num_conv_channels, num_conv_channels]
-    vae_decoder_num_filters = [num_conv_channels, num_conv_channels]
+    vae_encoder_shape_weights = cfg['vae_encoder_shape_weights']
+    vae_decoder_shape_weights = cfg['vae_decoder_shape_weights']   
+    vae_encoder_strides = cfg['vae_encoder_strides']
+    vae_decoder_strides = cfg['vae_decoder_shape_weights']
+    vae_encoder_num_filters = [num_conv_channels for _ in range(len(vae_encoder_shape_weights))]
+    vae_decoder_num_filters = [num_conv_channels for _ in range(len(vae_decoder_shape_weights))]
     
     # produce a noised version of training data for each training epoch:
     #  the second parameter is the percentage of noise that is added wrt max-min of the time series'values
-    make_some_noise = (False, 5e-2)  
+    make_some_noise = (True if cfg['make_some_noise'] == "true" else False,
+                       cfg['make_some_noise'])
 
     # decide which to use as probability generator for each sequence between Q(z|x) and P(z)
-    prob_generator = 'P(z)'  # one between 'Q(z|x)' and 'P(z)', as string. Default is P(z)
+    prob_generator = cfg['prob_generator']  # one between 'Q(z|x)' and 'P(z)', as string. Default is P(z)
     
     # for each training epoch, use a random value of stride between 1 and stride
-    random_stride = False  
-    vae_hidden_size = 1
-    subsampling = 1
-    elbo_importance = (.2, 1.)  # relative importance to reconstruction and divergence
-    lambda_reg = (0e-3, 0e-3)  # elastic net 'lambdas', L1-L2
-    rounding = None
+    random_stride = True if cfg['random_stride'] == 'true' else False
+    vae_hidden_size = cfg['vae_hidden_size']
+    subsampling = cfg['subsampling']
+    elbo_importance = cfg['elbo_importance']  # relative importance to reconstruction and divergence
+    lambda_reg = cfg['lambda_reg']  # elastic net 'lambdas', L1-L2
+    rounding = None if cfg['rounding'] == 'None' else cfg['rounding']
     
     # maximize precision or F1-score over this vector
-    sigma_threshold_elbo = [1e-2] # [i*1e-3 for i in range(1, 100, 10)]
+    sigma_threshold_elbo = cfg['sigma_threshold_elbo'] # [i*1e-3 for i in range(1, 100, 10)]
     
-    learning_rate_elbo = 1e-3
-    vae_activation = tf.nn.relu6
-    normalization = 'maxmin-11'
+    learning_rate_elbo = cfg['learning_rate_elbo']
+    vae_activation = eval(cfg['vae_activation'])  # bad but still better than a lookup table with all the TF activations
+    normalization = cfg['normalization']
     
     # training epochs
-    epochs = 100
+    epochs = cfg['epochs']
        
     # number of sampling per iteration in the VAE hidden layer
-    samples_per_iter = 1
+    samples_per_iter = cfg['samples_per_iter']
     
     # early-stopping parameters
     stop_on_growing_error = True
@@ -233,7 +243,7 @@ if __name__ == '__main__':
         optimizer_elbo = tf.train.AdamOptimizer(learning_rate_elbo).minimize(regularized_elbo)
         
     if random_stride == False:
-        
+               
         # extract train and test
         x_train, y_train, x_valid, y_valid, x_test, y_test = utils.generate_batches(
                                                                  filename=data_path, 
@@ -247,10 +257,10 @@ if __name__ == '__main__':
                                                                  td_method=None,
                                                                  subsampling=subsampling,
                                                                  rounding=rounding)
-       
+               
         # suppress second axis on Y values (the algorithms expects shapes like (n,) for the prediction)
         y_train = y_train[:,0]; y_valid = y_valid[:,0]; y_test = y_test[:,0]
-        
+               
         if len(x_train) > len(y_train):
             
             x_train = x_train[:len(y_train)]
@@ -262,8 +272,17 @@ if __name__ == '__main__':
         if len(x_test) > len(y_test):
             
             x_test = x_test[:len(y_test)]
-                    
 
+        """  
+        # adjust train test size (for testing purpose)
+        y_train = y_train[300:3000]
+        x_train = x_train[300:3000,:]
+        y_valid = y_valid[300:1600]
+        x_valid = x_valid[300:1600,:]
+        y_test = y_test[4500:]
+        x_test = x_test[4500:,:]
+        """
+            
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
                                           log_device_placement=False)) as sess:
         
@@ -287,7 +306,7 @@ if __name__ == '__main__':
                                                                      time_difference=False,
                                                                      td_method=None,
                                                                      subsampling=subsampling,
-                                                                     rounding=rounding)
+                                                                     rounding=rounding)                                                                   
            
             # suppress second axis on Y values (the algorithms expects shapes like (n,) for the prediction)
             y_train = y_train[:,0]; y_valid = y_valid[:,0]; y_test = y_test[:,0]
