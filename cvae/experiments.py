@@ -5,7 +5,7 @@ Created on Sun Feb 10 09:36:16 2019
 @author: Emanuele
 
 Call this program with a python interpreter and as command line argument the path to the configuration file:
-  '''python3 experiments.py power_consumption_config.json'''
+  '''python3 -m experiments config/power_consumption_config.json'''
 """
 
 import copy as cp
@@ -28,8 +28,8 @@ if __name__ == '__main__':
     with open(sys.argv[1]) as config_file:
         cfg = json.load(config_file)
 
-    # decide which device to execute the computation
-    computational_device = cfg['device']  # decide between CPU, GPU etc.
+    # set the device that executes the computation
+    computational_device = cfg['device']
     
     # parameters of the model
     data_path = cfg['data_path']
@@ -272,16 +272,6 @@ if __name__ == '__main__':
         if len(x_test) > len(y_test):
             
             x_test = x_test[:len(y_test)]
-
-        """  
-        # adjust train test size (for testing purpose)
-        y_train = y_train[300:3000]
-        x_train = x_train[300:3000,:]
-        y_valid = y_valid[300:1600]
-        x_valid = x_valid[300:1600,:]
-        y_test = y_test[4500:]
-        x_test = x_test[4500:,:]
-        """
             
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=False,
                                           log_device_placement=False)) as sess:
@@ -381,6 +371,7 @@ if __name__ == '__main__':
                     
                 print("[CUSTOM-LOGGER]: Previous error on valid ", last_error_on_valid)
                 print("[CUSTOM-LOGGER]: Current error on valid ", current_error_on_valid)
+                print()
                                  
                 # stop learning if the loss reduction is below the threshold (current_loss/past_loss)
                 if current_error_on_valid > last_error_on_valid or (np.abs(current_error_on_valid/last_error_on_valid) > 1-min_loss_improvment and e!=0):
@@ -411,7 +402,7 @@ if __name__ == '__main__':
         
         for t in sigma_threshold_elbo:
             
-            print("Optimizing with threshold's value: ", t)
+            print("[CUSTOM-LOGGER]: Optimizing with threshold's value: ", t)
             
             vae_anomalies = []
             p_anom = np.zeros(shape=(int(np.floor(x_test.shape[0] / batch_size)),))

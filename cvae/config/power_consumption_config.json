@@ -7,9 +7,9 @@
     "num_conv_channels" : 1,
     
     "vae_encoder_shape_weights": [8, 4],
-    "vae_decoder_shape_weights": [4, 8],   
+    "vae_decoder_shape_weights": [2, 3, 3, 3],   
     "vae_encoder_strides": [4, 2],
-    "vae_decoder_strides": [2, 4],
+    "vae_decoder_strides": [1, 1, 2, 2],
     
     "make_some_noise": ["false", 5e-2],
 

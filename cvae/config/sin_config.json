@@ -4,19 +4,19 @@
     "sequence_len" : 50,
     "batch_size" : 1,
     "stride" : 5,
-    "num_conv_channels" : 1,
+    "num_conv_channels" : 4,
     
     "vae_encoder_shape_weights": [4, 2],
-    "vae_decoder_shape_weights": [2, 4],   
+    "vae_decoder_shape_weights": [2, 2, 2, 2],   
     "vae_encoder_strides": [2, 2],
-    "vae_decoder_strides": [2, 2],
+    "vae_decoder_strides": [1, 1, 1, 2],
     
     "make_some_noise": ["false", 5e-2],
 
     "prob_generator": "P(z)",
     
     "random_stride": "false",
-    "vae_hidden_size": 1,
+    "vae_hidden_size": 2,
     "subsampling": 1,
     "elbo_importance": [0.2, 1.0],
     "lambda_reg": [0e-3, 0e-3],
